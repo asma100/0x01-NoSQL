@@ -1,2 +1,4 @@
 //task2
-db.school.insertOne({ name: "Holberton school" });
+db = db.getSiblingDB("<database_name>");
+db.school.insert({ name: "Holberton school" });
+
