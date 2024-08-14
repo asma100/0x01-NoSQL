@@ -11,7 +11,7 @@ def logs():
     total = co.count_documents({})
     methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
     method_c = {method: co.count_documents({'method': method}) for method in methods}
-    status= co.count_documents({'method': 'GET', 'path': '/status'})
+    status = co.count_documents({'method': 'GET', 'path': '/status'})
     ip_counts = co.aggregate([
         {
             '$group': {
@@ -31,10 +31,10 @@ def logs():
     for method in methods:
         print(f"\tmethod {method}: {method_c[method]}")
     print(f"{status} status check")
-    
     print("IPs:")
     for ip in ip_counts:
         print(f"\t{ip['_id']}: {ip['count']}")
+
 
 if __name__ == "__main__":
     logs()
