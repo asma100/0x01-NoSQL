@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """ tasks """
 import uuid
@@ -36,6 +35,25 @@ def call_history(method: Callable) -> Callable:
         return result
 
     return wrapper
+
+
+def replay(method: Callable):
+    """
+    Display the history of calls of a particular function.
+    """
+    redis_client = method.__self__._redis
+    input_key = f"{method.__qualname__}:inputs"
+    output_key = f"{method.__qualname__}:outputs"
+
+    inputs = redis_client.lrange(input_key, 0, -1)
+    outputs = redis_client.lrange(output_key, 0, -1)
+
+    print(f"{method.__qualname__} was called {len(inputs)} times:")
+
+    for input_data, output_data in zip(inputs, outputs):
+        input_str = input_data.decode('utf-8')
+        output_str = output_data.decode('utf-8')
+        print(f"{method.__qualname__}(*{input_str}) -> {output_str}")
 
 
 class Cache:
