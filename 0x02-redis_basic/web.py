@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+""" tasks """
+import requests
+from functools import wraps
+from datetime import timedelta
+from redis import Redis
+
+redis_client = Redis(host='localhost', port=6379)
+cache_prefix = 'count:'
+cache_expire = timedelta(seconds=10)
+
+
+def count_url_access(func):
+    """
+    Decorator that tracks URL access count and caches the result.
+    """
+
+    @wraps(func)
+    def wrapper(url):
+        cache_key = f"{cache_prefix}{url}"
+        cached_data = redis_client.get(cache_key)
+        if cached_data is None:
+            data = func(url)
+            redis_client.set(cache_key, data, ex=cache_expire.total_seconds())
+            redis_client.incr(f"{cache_prefix}{url}:count")
+        else:
+            data = cached_data.decode('utf-8')
+
+        return data
+
+    return wrapper
+
+
+@count_url_access
+def get_page(url: str) -> str:
+    """
+    Fetches the HTML content of a URL using requests.
+    """
+
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.content
+
+
+
+url = "http://slowwly.robertomurray.co.uk/delay/3000/url/slow-response"
+print(get_page(url))
+print(get_page(url))
