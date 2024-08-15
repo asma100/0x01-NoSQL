@@ -1,48 +1,64 @@
+
 #!/usr/bin/env python3
-""" tasks """
+"""tasks"""
 import requests
-from functools import wraps
-from datetime import timedelta
-from redis import Redis
+import redis
+import functools
+from typing import Callable
 
-redis_client = Redis(host='localhost', port=6379)
-cache_prefix = 'count:'
-cache_expire = timedelta(seconds=10)
+r = redis.Redis()
 
-
-def count_url_access(func):
+def cache_with_expiration(expiration: int = 10) -> Callable:
     """
-    Decorator that tracks URL access count and caches the result.
+    Decorator to cache the result of the function in Redis with an expiration time.
     """
+    def decorator(method: Callable) -> Callable:
+        @functools.wraps(method)
+        def wrapper(url: str) -> str:
+            cache_key = f"cache:{url}"
+            cached_page = r.get(cache_key)
 
-    @wraps(func)
-    def wrapper(url):
-        cache_key = f"{cache_prefix}{url}"
-        cached_data = redis_client.get(cache_key)
-        if cached_data is None:
-            data = func(url)
-            redis_client.set(cache_key, data, ex=cache_expire.total_seconds())
-            redis_client.incr(f"{cache_prefix}{url}:count")
-        else:
-            data = cached_data.decode('utf-8')
+            if cached_page:
+                return cached_page.decode('utf-8')
 
-        return data
+            result = method(url)
+            r.setex(cache_key, expiration, result)
+            return result
+
+        return wrapper
+
+    return decorator
+
+def count_access(method: Callable) -> Callable:
+    """
+    Decorator to count the number of times a particular URL is accessed.
+    """
+    @functools.wraps(method)
+    def wrapper(url: str) -> str:
+        access_key = f"count:{url}"
+        r.incr(access_key)
+        return method(url)
 
     return wrapper
 
-
-@count_url_access
+@cache_with_expiration(10)
+@count_access
 def get_page(url: str) -> str:
     """
-    Fetches the HTML content of a URL using requests.
+    Fetches the HTML content of a given URL and caches the result.
     """
-
     response = requests.get(url)
-    response.raise_for_status()
-    return response.content
+    return response.text
 
 
+if __name__ == "__main__":
+    test_url = "http://slowwly.robertomurray.co.uk/delay/5000/url/http://www.example.com"
+    
+    print("First access (should be slow):")
+    print(get_page(test_url))
+    
+    print("\nSecond access (should be fast from cache):")
+    print(get_page(test_url))
 
-url = "http://slowwly.robertomurray.co.uk/delay/3000/url/slow-response"
-print(get_page(url))
-print(get_page(url))
+    print("\nAccess count:")
+    print(r.get(f"count:{test_url}").decode('utf-8'))
